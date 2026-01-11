@@ -1,65 +1,191 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel Admin 后台管理系统
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+基于 Laravel 10 和 Laravel Admin 的后台管理系统，提供教师管理和学生管理功能。
 
-## About Laravel
+## 技术栈
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **PHP**: 8.2+
+- **框架**: Laravel 10.x
+- **后台管理**: Laravel Admin 1.8
+- **数据库**: PostgreSQL
+- **环境**: Herd (本地开发)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 功能特性
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 1. 教师管理
+- 教师信息的增删改查
+- 教师列表展示（支持搜索、排序）
+- 教师详情查看
+- 软删除支持
 
-## Learning Laravel
+### 2. 学生管理
+- 学生信息的增删改查
+- 学生列表展示（支持搜索、排序、筛选）
+- 学生详情查看
+- 学生与教师的关联管理
+- 软删除支持
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 3. 权限管理
+- 基于角色的权限控制（RBAC）
+- 教师管理权限（`teacher.manage`）
+- 学生管理权限（`student.manage`）
+- Dashboard 权限（`dashboard`）
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+### 4. 数据库设计
+- **teachers**: 教师表
+- **students**: 学生表
+- **courses**: 课程表
+- **invoices**: 账单表
+- **course_student**: 课程-学生关联表
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+所有表均支持软删除（`deleted_at`）。
 
-## Laravel Sponsors
+## 环境要求
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- PHP >= 8.2
+- Composer
+- PostgreSQL
+- Herd (推荐，用于本地开发)
 
-### Premium Partners
+## 安装步骤
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+### 1. 克隆项目
 
-## Contributing
+```bash
+git clone git@github.com:zzxxin/meranage_admin.git
+cd meranage_admin
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 2. 安装依赖
 
-## Code of Conduct
+```bash
+composer install
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 3. 配置环境
 
-## Security Vulnerabilities
+复制 `.env.example` 为 `.env` 并配置数据库连接：
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+cp .env.example .env
+```
+
+编辑 `.env` 文件，配置 PostgreSQL 数据库：
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=your_database
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+```
+
+### 4. 生成应用密钥
+
+```bash
+herd php artisan key:generate
+```
+
+### 5. 运行数据库迁移
+
+```bash
+herd php artisan migrate
+```
+
+### 6. 初始化 Laravel Admin
+
+```bash
+herd php artisan admin:install
+```
+
+### 7. 创建管理员用户
+
+```bash
+herd php artisan admin:create-user
+```
+
+### 8. 初始化菜单和权限
+
+```bash
+herd php artisan db:seed --class=AdminMenuSeeder
+```
+
+手动创建权限（可选）：
+- 教师管理权限（`teacher.manage`）
+- 学生管理权限（`student.manage`）
+
+## 默认账号
+
+- **用户名**: `admin`
+- **密码**: `admin`（首次登录后请修改）
+- **权限**: 全部权限（`*`）
+
+## 开发命令
+
+### 启动开发服务器
+
+```bash
+herd php artisan serve --host=0.0.0.0 --port=8000
+```
+
+访问: `http://localhost:8000/admin`
+
+### 运行测试
+
+```bash
+herd php artisan test
+```
+
+### 清除缓存
+
+```bash
+herd php artisan cache:clear
+herd php artisan config:clear
+herd php artisan route:clear
+herd php artisan view:clear
+```
+
+
+## 权限说明
+
+系统使用 Laravel Admin 的 RBAC（基于角色的权限控制）系统：
+
+1. **All permission (`*`)**: 全部权限，分配给 Administrator 角色
+2. **Dashboard (`dashboard`)**: Dashboard 访问权限
+3. **教师管理 (`teacher.manage`)**: 教师管理权限
+4. **学生管理 (`student.manage`)**: 学生管理权限
+
+默认 `admin` 账号拥有 `Administrator` 角色，具有全部权限。
+
+## 目录结构
+
+```
+app/
+├── Admin/
+│   ├── Controllers/
+│   │   ├── HomeController.php      # 首页控制器
+│   │   ├── TeacherController.php   # 教师管理控制器
+│   │   └── StudentController.php   # 学生管理控制器
+│   └── routes.php                  # 路由配置
+├── Models/
+│   ├── Teacher.php                 # 教师模型
+│   ├── Student.php                 # 学生模型
+│   ├── Course.php                  # 课程模型
+│   └── Invoice.php                 # 账单模型
+database/
+├── migrations/                     # 数据库迁移文件
+└── seeders/
+    └── AdminMenuSeeder.php         # 菜单 Seeder
+```
+
+## 注意事项
+
+1. 本地开发使用 Herd，所有 Artisan 命令前需要加 `herd` 前缀
+2. 数据库使用 PostgreSQL，确保已正确配置
+3. 所有表均支持软删除，删除操作不会真正删除数据
+4. 权限管理通过 Laravel Admin 的 RBAC 系统实现
+5. 默认账号密码为 `admin`，生产环境请务必修改
 
 ## License
 

@@ -3,6 +3,7 @@
 namespace App\Admin\Controllers;
 
 use App\Models\Teacher;
+use App\Services\TeacherService;
 use Encore\Admin\Controllers\AdminController;
 use Encore\Admin\Form;
 use Encore\Admin\Grid;
@@ -22,6 +23,23 @@ class TeacherController extends AdminController
     protected $title = '教师管理';
 
     /**
+     * 教师服务
+     *
+     * @var TeacherService
+     */
+    protected $teacherService;
+
+    /**
+     * 构造函数
+     *
+     * @param TeacherService $teacherService
+     */
+    public function __construct(TeacherService $teacherService)
+    {
+        $this->teacherService = $teacherService;
+    }
+
+    /**
      * 构建列表页面
      * 使用预加载避免 N+1 问题
      * 通过权限控制：只有系统管理员角色可以访问（通过路由权限自动检查）
@@ -30,9 +48,9 @@ class TeacherController extends AdminController
      */
     protected function grid()
     {
-
         $grid = new Grid(new Teacher());
 
+        // 使用 Service 获取查询构建器，确保加载学生数量统计
         $grid->model()->withCount('students');
 
         $grid->column('id', 'ID')->sortable();
@@ -76,7 +94,8 @@ class TeacherController extends AdminController
      */
     protected function detail($id)
     {
-        $teacher = Teacher::withCount('students')->findOrFail($id);
+        // 使用 Service 获取教师详情
+        $teacher = $this->teacherService->getDetailById($id);
         $show = new Show($teacher);
 
         $show->field('id', 'ID');
@@ -111,34 +130,37 @@ class TeacherController extends AdminController
      */
     protected function form()
     {
+        $teacherService = $this->teacherService;
         $form = new Form(new Teacher());
 
-        $form->text('name', '姓名')->required()->rules('required|max:255');
-        $form->email('email', '邮箱')->required()->rules(function ($form) {
-            $rules = 'required|email';
-            if (!$form->isCreating()) {
-                $rules .= '|unique:teachers,email,' . $form->model()->id;
-            } else {
-                $rules .= '|unique:teachers,email';
-            }
-            return $rules;
-        });
-        $form->mobile('phone', '联系电话')->rules('nullable|max:20');
+        $form->text('name', '姓名')
+            ->required()
+            ->rules('required|string|max:255|min:1|regex:/^[\x{4e00}-\x{9fa5}a-zA-Z\s]+$/u')
+            ->help('只能包含中文、英文和空格，长度1-255个字符');
+        $form->email('email', '邮箱')
+            ->required()
+            ->rules(function ($form) use ($teacherService) {
+                // 使用 Service 获取验证规则
+                $excludeId = $form->isEditing() ? $form->model()->id : null;
+                $rule = $teacherService->getEmailUniqueRule($excludeId);
+                return $rule . '|email:rfc,dns';
+            });
+        $form->mobile('phone', '联系电话')
+            ->rules('nullable|string|max:20|regex:/^1[3-9]\d{9}$/')
+            ->help('请输入11位手机号，例如：13800138000');
 
         // 密码字段处理
         $form->password('password', '密码')
-            ->help('留空则不修改密码')
-            ->rules(function ($form) {
-                // 如果是编辑模式且密码为空，则不需要验证
-                if (!$form->isCreating() && !$form->password) {
-                    return '';
-                }
-                return 'required|min:6';
+            ->help('留空则不修改密码，至少6个字符')
+            ->rules(function ($form) use ($teacherService) {
+                // 使用 Service 获取验证规则
+                $rule = $teacherService->getPasswordRule($form->isCreating());
+                return $rule . '|string|max:255';
             });
 
-        // 保存前的回调，处理密码加密
+        // 保存前的回调，处理密码
         $form->saving(function (Form $form) {
-            // 如果密码为空且是编辑模式，则不更新密码
+            // 如果密码为空且是编辑模式，则不更新密码（Model 的 casts 已自动处理密码加密）
             if (!$form->password && $form->isEditing()) {
                 $form->password = $form->model()->password;
             }

@@ -82,4 +82,36 @@ class Teacher extends Authenticatable
     {
         return $this->hasMany(Course::class);
     }
+
+    /**
+     * 获取带学生数量统计的查询构建器
+     *
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public static function queryWithStudentsCount()
+    {
+        return static::withCount('students');
+    }
+
+    /**
+     * 根据ID获取教师详情（带学生数量统计）
+     *
+     * @param int $id
+     * @return static
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     */
+    public static function findWithStudentsCount(int $id): self
+    {
+        return static::withCount('students')->findOrFail($id);
+    }
+
+    /**
+     * 获取所有教师的ID和名称映射（用于下拉选择）
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public static function getOptionsForSelect()
+    {
+        return static::pluck('name', 'id');
+    }
 }

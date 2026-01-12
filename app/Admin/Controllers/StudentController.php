@@ -4,6 +4,7 @@ namespace App\Admin\Controllers;
 
 use App\Models\Student;
 use App\Models\Teacher;
+use App\Services\StudentService;
 use Encore\Admin\Controllers\AdminController;
 use Encore\Admin\Form;
 use Encore\Admin\Grid;
@@ -24,6 +25,23 @@ class StudentController extends AdminController
     protected $title = '学生管理';
 
     /**
+     * 学生服务
+     *
+     * @var StudentService
+     */
+    protected $studentService;
+
+    /**
+     * 构造函数
+     *
+     * @param StudentService $studentService
+     */
+    public function __construct(StudentService $studentService)
+    {
+        $this->studentService = $studentService;
+    }
+
+    /**
      * 构建列表页面
      * 使用预加载避免 N+1 问题
      * 通过权限控制：只有教师角色可以访问（通过路由权限自动检查）
@@ -32,10 +50,10 @@ class StudentController extends AdminController
      */
     protected function grid()
     {
-
         $grid = new Grid(new Student());
 
-        $grid->model()->with('teacher');
+        // 使用 Service 获取查询构建器
+        $grid->model($this->studentService->getListQuery());
 
         $grid->column('id', 'ID')->sortable();
         $grid->column('teacher.name', '所属教师')->display(function ($teacherName) {
@@ -66,7 +84,8 @@ class StudentController extends AdminController
             $filter->like('email', '邮箱');
             $filter->like('phone', '联系电话');
             $filter->like('student_number', '学号');
-            $filter->equal('teacher_id', '所属教师')->select(Teacher::pluck('name', 'id'));
+            // 使用 Model 方法获取教师选项
+            $filter->equal('teacher_id', '所属教师')->select(Teacher::getOptionsForSelect());
             $filter->between('created_at', '创建时间')->datetime();
         });
 
@@ -81,7 +100,9 @@ class StudentController extends AdminController
      */
     protected function detail($id)
     {
-        $show = new Show(Student::with('teacher')->findOrFail($id));
+        // 使用 Service 获取学生详情
+        $student = $this->studentService->getDetailById($id);
+        $show = new Show($student);
 
         $show->field('id', 'ID');
         $show->field('teacher.name', '所属教师')->as(function ($teacherName) {
@@ -107,50 +128,52 @@ class StudentController extends AdminController
      */
     protected function form()
     {
+        $studentService = $this->studentService;
         $form = new Form(new Student());
 
         // 教师选择：有权限访问学生管理的用户可以选择所有教师
         // 权限控制已通过 Laravel Admin 的角色权限系统自动处理
         $form->select('teacher_id', '所属教师')
-            ->options(Teacher::pluck('name', 'id'))
+            ->options(Teacher::getOptionsForSelect())
             ->required()
             ->rules('required|exists:teachers,id');
 
-        $form->text('name', '姓名')->required()->rules('required|max:255');
-        $form->email('email', '邮箱')->required()->rules(function ($form) {
-            $rules = 'required|email';
-            if (!$form->isCreating()) {
-                $rules .= '|unique:students,email,' . $form->model()->id;
-            } else {
-                $rules .= '|unique:students,email';
-            }
-            return $rules;
-        });
-        $form->mobile('phone', '联系电话')->rules('nullable|max:20');
-        $form->text('student_number', '学号')->rules(function ($form) {
-            $rules = 'nullable|max:50';
-            if (!$form->isCreating()) {
-                $rules .= '|unique:students,student_number,' . $form->model()->id;
-            } else {
-                $rules .= '|unique:students,student_number';
-            }
-            return $rules;
-        });
+        $form->text('name', '姓名')
+            ->required()
+            ->rules('required|string|max:255|min:1|regex:/^[\x{4e00}-\x{9fa5}a-zA-Z\s]+$/u')
+            ->help('只能包含中文、英文和空格，长度1-255个字符');
+        $form->email('email', '邮箱')
+            ->required()
+            ->rules(function ($form) use ($studentService) {
+                // 使用 Service 获取验证规则
+                $excludeId = $form->isEditing() ? $form->model()->id : null;
+                $rule = $studentService->getEmailUniqueRule($excludeId);
+                return $rule . '|email:rfc,dns';
+            });
+        $form->mobile('phone', '联系电话')
+            ->rules('nullable|string|max:20|regex:/^1[3-9]\d{9}$/')
+            ->help('请输入11位手机号，例如：13800138000');
+        $form->text('student_number', '学号')
+            ->rules(function ($form) use ($studentService) {
+                // 使用 Service 获取验证规则
+                $excludeId = $form->isEditing() ? $form->model()->id : null;
+                $rule = $studentService->getStudentNumberUniqueRule($excludeId);
+                return $rule . '|regex:/^[A-Za-z0-9_-]+$/';
+            })
+            ->help('只能包含字母、数字、下划线和连字符，最多50个字符');
 
         // 密码字段处理
         $form->password('password', '密码')
-            ->help('留空则不修改密码')
-            ->rules(function ($form) {
-                // 如果是编辑模式且密码为空，则不需要验证
-                if (!$form->isCreating() && !$form->password) {
-                    return '';
-                }
-                return 'required|min:6';
+            ->help('留空则不修改密码，至少6个字符')
+            ->rules(function ($form) use ($studentService) {
+                // 使用 Service 获取验证规则
+                $rule = $studentService->getPasswordRule($form->isCreating());
+                return $rule . '|string|max:255';
             });
 
-        // 保存前的回调，处理密码加密和默认值
+        // 保存前的回调，处理密码
         $form->saving(function (Form $form) {
-            // 如果密码为空且是编辑模式，则不更新密码
+            // 如果密码为空且是编辑模式，则不更新密码（Model 的 casts 已自动处理密码加密）
             if (!$form->password && $form->isEditing()) {
                 $form->password = $form->model()->password;
             }

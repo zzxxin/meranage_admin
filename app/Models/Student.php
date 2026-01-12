@@ -98,4 +98,26 @@ class Student extends Authenticatable
     {
         return $this->hasMany(Invoice::class);
     }
+
+    /**
+     * 获取带教师信息的查询构建器
+     *
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public static function queryWithTeacher()
+    {
+        return static::with('teacher');
+    }
+
+    /**
+     * 根据ID获取学生详情（带教师信息）
+     *
+     * @param int $id
+     * @return static
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     */
+    public static function findWithTeacher(int $id): self
+    {
+        return static::with('teacher')->findOrFail($id);
+    }
 }

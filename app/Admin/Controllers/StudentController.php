@@ -136,24 +136,12 @@ class StudentController extends AdminController
         $form->select('teacher_id', '所属教师')
             ->options(Teacher::getOptionsForSelect())
             ->required()
-            ->rules('required|exists:teachers,id')
-            ->error([
-                'required' => '所属教师不能为空。',
-                'integer' => '所属教师ID必须是整数。',
-                'exists' => '所选教师不存在。',
-            ]);
+            ->rules('required|exists:teachers,id');
 
         $form->text('name', '姓名')
             ->required()
             ->rules('required|string|max:255|min:1|regex:/^[\x{4e00}-\x{9fa5}a-zA-Z\s]+$/u')
-            ->help('只能包含中文、英文和空格，长度1-255个字符')
-            ->error([
-                'required' => '姓名不能为空。',
-                'string' => '姓名必须是字符串。',
-                'max' => '姓名不能超过255个字符。',
-                'min' => '姓名至少需要1个字符。',
-                'regex' => '姓名只能包含中文、英文和空格。',
-            ]);
+            ->help('只能包含中文、英文和空格，长度1-255个字符');
         $form->email('email', '邮箱')
             ->required()
             ->rules(function ($form) use ($studentService) {
@@ -161,21 +149,10 @@ class StudentController extends AdminController
                 $excludeId = $form->isEditing() ? $form->model()->id : null;
                 $rule = $studentService->getEmailUniqueRule($excludeId);
                 return $rule . '|email:rfc,dns';
-            })
-            ->error([
-                'required' => '邮箱不能为空。',
-                'email' => '请输入有效的邮箱地址。',
-                'max' => '邮箱不能超过255个字符。',
-                'unique' => '该邮箱已被使用。',
-            ]);
+            });
         $form->mobile('phone', '联系电话')
             ->rules('nullable|string|max:20|regex:/^1[3-9]\d{9}$/')
-            ->help('请输入11位手机号，例如：13800138000')
-            ->error([
-                'string' => '联系电话必须是字符串。',
-                'max' => '联系电话不能超过20个字符。',
-                'regex' => '联系电话格式不正确，请输入11位手机号。',
-            ]);
+            ->help('请输入11位手机号，例如：13800138000');
         $form->text('student_number', '学号')
             ->rules(function ($form) use ($studentService) {
                 // 使用 Service 获取验证规则
@@ -183,13 +160,7 @@ class StudentController extends AdminController
                 $rule = $studentService->getStudentNumberUniqueRule($excludeId);
                 return $rule . '|regex:/^[A-Za-z0-9_-]+$/';
             })
-            ->help('只能包含字母、数字、下划线和连字符，最多50个字符')
-            ->error([
-                'string' => '学号必须是字符串。',
-                'max' => '学号不能超过50个字符。',
-                'unique' => '该学号已被使用。',
-                'regex' => '学号只能包含字母、数字、下划线和连字符。',
-            ]);
+            ->help('只能包含字母、数字、下划线和连字符，最多50个字符');
 
         // 密码字段处理
         $form->password('password', '密码')
@@ -198,13 +169,7 @@ class StudentController extends AdminController
                 // 使用 Service 获取验证规则
                 $rule = $studentService->getPasswordRule($form->isCreating());
                 return $rule . '|string|max:255';
-            })
-            ->error([
-                'required' => '密码不能为空。',
-                'string' => '密码必须是字符串。',
-                'min' => '密码至少需要6个字符。',
-                'max' => '密码不能超过255个字符。',
-            ]);
+            });
 
         // 保存前的回调，处理密码
         $form->saving(function (Form $form) {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Encore\Admin\Auth\Database\Administrator;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +15,7 @@ use Laravel\Sanctum\HasApiTokens;
  * 学生模型
  * 
  * @property int $id 学生ID
- * @property int $teacher_id 所属教师ID
+ * @property int $teacher_id 所属教师ID（关联 admin_users 表）
  * @property string $name 学生姓名
  * @property string $email 学生邮箱
  * @property string|null $phone 联系电话
@@ -25,7 +26,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property \Illuminate\Support\Carbon|null $created_at 创建时间
  * @property \Illuminate\Support\Carbon|null $updated_at 更新时间
  * @property \Illuminate\Support\Carbon|null $deleted_at 软删除时间
- * @property-read Teacher $teacher 所属的教师
+ * @property-read Administrator $teacher 所属的教师（admin_users 表中的用户）
  */
 class Student extends Authenticatable
 {
@@ -68,12 +69,14 @@ class Student extends Authenticatable
     /**
      * 获取该学生所属的教师
      * 多对一关系：多个学生属于一个教师
+     * 教师现在存储在 admin_users 表中
      *
      * @return BelongsTo
      */
     public function teacher(): BelongsTo
     {
-        return $this->belongsTo(Teacher::class);
+        $usersTable = config('admin.database.users_table', 'admin_users');
+        return $this->belongsTo(Administrator::class, 'teacher_id', 'id');
     }
 
     /**

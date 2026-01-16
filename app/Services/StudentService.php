@@ -25,12 +25,21 @@ class StudentService
      * 根据ID获取学生详情（带教师信息）
      *
      * @param int $id
+     * @param mixed $user 当前登录用户，如果是教师则验证是否属于该教师
      * @return Student
      * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     * @throws \Illuminate\Auth\Access\AuthorizationException 如果是教师但不拥有该学生，抛出授权异常
      */
-    public function getDetailById(int $id): Student
+    public function getDetailById(int $id, $user = null): Student
     {
-        return Student::with('teacher')->findOrFail($id);
+        $student = Student::with('teacher')->findOrFail($id);
+
+        // 如果是教师，验证该学生是否属于该教师
+        if ($user && $user->user_type === 'teacher' && $student->teacher_id != $user->id) {
+            abort(403, '您无权查看其他教师的学生信息。');
+        }
+
+        return $student;
     }
 
     /**

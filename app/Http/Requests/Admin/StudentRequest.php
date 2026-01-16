@@ -34,7 +34,7 @@ class StudentRequest extends FormRequest
             'teacher_id' => [
                 'required',
                 'integer',
-                'exists:teachers,id',
+                'exists:admin_users,id',
             ],
             'name' => [
                 'required',

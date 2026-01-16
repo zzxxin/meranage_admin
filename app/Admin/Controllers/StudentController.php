@@ -2,10 +2,12 @@
 
 namespace App\Admin\Controllers;
 
+use App\Models\AdminUser;
 use App\Models\Student;
-use App\Models\Teacher;
 use App\Services\StudentService;
+use App\Services\TeacherService;
 use Encore\Admin\Controllers\AdminController;
+use Encore\Admin\Facades\Admin;
 use Encore\Admin\Form;
 use Encore\Admin\Grid;
 use Encore\Admin\Show;
@@ -32,13 +34,22 @@ class StudentController extends AdminController
     protected $studentService;
 
     /**
+     * 教师服务
+     *
+     * @var TeacherService
+     */
+    protected $teacherService;
+
+    /**
      * 构造函数
      *
      * @param StudentService $studentService
+     * @param TeacherService $teacherService
      */
-    public function __construct(StudentService $studentService)
+    public function __construct(StudentService $studentService, TeacherService $teacherService)
     {
         $this->studentService = $studentService;
+        $this->teacherService = $teacherService;
     }
 
     /**
@@ -52,9 +63,24 @@ class StudentController extends AdminController
     {
         $grid = new Grid(new Student());
 
-        // 使用 Service 获取查询构建器
-        $grid->model($this->studentService->getListQuery());
+        // 获取当前登录用户
+        $authUser = Admin::user();
 
+        // 从数据库重新加载用户，确保获取最新的属性（包括 user_type）
+        $user = null;
+        if ($authUser) {
+            $user = AdminUser::find($authUser->id);
+        }
+
+        // 先设置查询条件和关联加载（在设置列之前）
+        $grid->model()->with('teacher');
+        
+        // 如果是教师，只显示自己创建的学生
+        if ($user && isset($user->user_type) && $user->user_type === 'teacher') {
+            $grid->model()->where('teacher_id', $user->id);
+        }
+
+        // 设置列
         $grid->column('id', 'ID')->sortable();
         $grid->column('teacher.name', '所属教师')->display(function ($teacherName) {
             return $teacherName ?: '未分配';
@@ -79,13 +105,19 @@ class StudentController extends AdminController
         });
 
         // 启用过滤器
-        $grid->filter(function ($filter) {
+        $grid->filter(function ($filter) use ($user) {
             $filter->like('name', '姓名');
             $filter->like('email', '邮箱');
             $filter->like('phone', '联系电话');
             $filter->like('student_number', '学号');
-            // 使用 Model 方法获取教师选项
-            $filter->equal('teacher_id', '所属教师')->select(Teacher::getOptionsForSelect());
+
+            // 如果是教师，不显示教师过滤器（因为只能看到自己的学生）
+            // 如果是系统管理员，可以按教师过滤
+            if (!$user || $user->user_type !== 'teacher') {
+                // 使用 Service 方法获取教师选项（只显示拥有"教师"角色的用户）
+                $filter->equal('teacher_id', '所属教师')->select($this->teacherService->getOptionsForSelect());
+            }
+
             $filter->between('created_at', '创建时间')->datetime();
         });
 
@@ -100,8 +132,11 @@ class StudentController extends AdminController
      */
     protected function detail($id)
     {
-        // 使用 Service 获取学生详情
-        $student = $this->studentService->getDetailById($id);
+        // 获取当前登录用户
+        $user = Admin::user();
+
+        // 使用 Service 获取学生详情（如果是教师，会验证是否拥有该学生）
+        $student = $this->studentService->getDetailById($id, $user);
         $show = new Show($student);
 
         $show->field('id', 'ID');
@@ -131,12 +166,25 @@ class StudentController extends AdminController
         $studentService = $this->studentService;
         $form = new Form(new Student());
 
-        // 教师选择：有权限访问学生管理的用户可以选择所有教师
-        // 权限控制已通过 Laravel Admin 的角色权限系统自动处理
-        $form->select('teacher_id', '所属教师')
-            ->options(Teacher::getOptionsForSelect())
-            ->required()
-            ->rules('required|exists:teachers,id');
+        // 获取当前登录用户
+        $currentUser = Admin::user();
+
+        // 教师选择：系统管理员可以选择所有教师，教师只能选择自己
+        if ($currentUser && $currentUser->user_type === 'teacher') {
+            // 教师只能选择自己作为所属教师
+            $form->select('teacher_id', '所属教师')
+                ->options([$currentUser->id => $currentUser->name])
+                ->default($currentUser->id)
+                ->required()
+                ->rules('required|exists:admin_users,id')
+                ->readOnly(); // 教师不能修改所属教师
+        } else {
+            // 系统管理员可以选择所有教师
+            $form->select('teacher_id', '所属教师')
+                ->options($this->teacherService->getOptionsForSelect())
+                ->required()
+                ->rules('required|exists:admin_users,id');
+        }
 
         $form->text('name', '姓名')
             ->required()
@@ -171,11 +219,55 @@ class StudentController extends AdminController
                 return $rule . '|string|max:255';
             });
 
-        // 保存前的回调，处理密码
-        $form->saving(function (Form $form) {
+        // 保存前的回调，处理密码和验证
+        $form->saving(function (Form $form) use ($currentUser) {
             // 如果密码为空且是编辑模式，则不更新密码（Model 的 casts 已自动处理密码加密）
             if (!$form->password && $form->isEditing()) {
                 $form->password = $form->model()->password;
+            }
+
+            // 如果是教师，强制设置 teacher_id 为当前用户
+            if ($currentUser && $currentUser->user_type === 'teacher') {
+                $form->teacher_id = $currentUser->id;
+
+                // 如果是编辑模式，验证教师是否拥有该学生
+                if ($form->isEditing() && $form->model()->teacher_id != $currentUser->id) {
+                    return back()->withErrors(['teacher_id' => '您无权修改其他教师的学生信息。'])->withInput();
+                }
+            }
+
+            // 创建时检查学生是否已经被其他教师添加
+            if ($form->isCreating()) {
+                // 通过邮箱或学号检查学生是否已存在
+                $existingStudent = null;
+                if (!empty($form->email)) {
+                    $existingStudent = Student::where('email', $form->email)->first();
+                }
+                if (!$existingStudent && !empty($form->student_number)) {
+                    $existingStudent = Student::where('student_number', $form->student_number)->first();
+                }
+
+                if ($existingStudent) {
+                    // 如果学生已存在，检查是否属于其他教师
+                    $expectedTeacherId = $currentUser && $currentUser->user_type === 'teacher'
+                        ? $currentUser->id
+                        : $form->teacher_id;
+
+                    if ($existingStudent->teacher_id != $expectedTeacherId) {
+                        $teacher = $existingStudent->teacher;
+                        $teacherName = $teacher ? $teacher->name : '未知教师';
+
+                        $errorMessage = '该学生已被教师"' . $teacherName . '"添加，无法重复添加。';
+                        if (!empty($form->email) && $existingStudent->email === $form->email) {
+                            $errorMessage .= '（邮箱：' . $form->email . '）';
+                        }
+                        if (!empty($form->student_number) && $existingStudent->student_number === $form->student_number) {
+                            $errorMessage .= '（学号：' . $form->student_number . '）';
+                        }
+
+                        return back()->withErrors(['email' => $errorMessage])->withInput();
+                    }
+                }
             }
         });
 

@@ -15,6 +15,9 @@ Route::group([
 
     $router->get('/', 'HomeController@index')->name('home');
     
+    // 覆盖默认的用户管理路由，使用自定义的 UserController（只显示系统管理员）
+    $router->resource('auth/users', \App\Admin\Controllers\UserController::class);
+    
     // 教师管理路由（系统管理员）
     $router->resource('teachers', TeacherController::class);
     
